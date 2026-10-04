@@ -34,6 +34,7 @@ On the first run, Kokoro downloads the model (~330 MB).
 python narrate.py example_script.txt                 # creates example_script.mp3 + .srt
 python narrate.py script.txt -o narration.mp3 --voice am_adam --speed 0.95
 python narrate.py script.txt --compare-voices        # voice samples in samples/
+python narrate.py script.txt --profile other_profile.json   # use another voice profile
 python narrate.py --list-voices
 ```
 
@@ -44,22 +45,32 @@ Output: audio normalized to -16 LUFS (the YouTube standard) and an `.srt` file w
 | Option | Description | Default |
 |---|---|---|
 | `-o`, `--output` | output file (`.mp3` or `.wav`) | `<script>.mp3` |
-| `--voice` | Kokoro voice (see `--list-voices`) | `af_heart` |
-| `--speed` | speech speed (0.8 = slower, 1.2 = faster) | `1.0` |
-| `--sentence-pause` | seconds of pause between sentences | `0.3` |
-| `--paragraph-pause` | seconds of pause between paragraphs | `0.8` |
+| `--profile` | voice profile (JSON) | `voice_profile.json` |
+| `--voice` | Kokoro voice (see `--list-voices`) | from profile (`am_adam`) |
+| `--speed` | speech speed (0.8 = slower, 1.2 = faster) | from profile (`0.95`) |
+| `--sentence-pause` | seconds of pause between sentences | from profile (`0.35`) |
+| `--paragraph-pause` | seconds of pause between paragraphs | from profile (`0.9`) |
 | `--dictionary` | pronunciation JSON file | `pronunciations.json` |
 | `--no-normalize` | skip loudness normalization (-16 LUFS) | |
 | `--no-srt` | do not write the `.srt` subtitle file | |
 | `--compare-voices` | render a sample with several voices | |
 | `--list-voices` | list the available voices | |
 
+Voice and pause options, when given, override the profile.
+
 ## Script format
 
-- Blank line between paragraphs: longer pause (`--paragraph-pause`, default 0.8 s)
+- Blank line between paragraphs: longer pause (`--paragraph-pause`)
+- `[beat]`: short pause before a key concept (length set by `beat_pause` in `voice_profile.json`)
 - `[pause 2]`: 2 seconds of silence
 - Lines starting with `#`: comments, not read aloud (use them for scene notes)
 - List items (`- text`) become separate sentences
+
+## Voice profile
+
+The HyperMechane voice standard lives in `voice_profile.json`: voice, speed, pauses (`sentence_pause`, `paragraph_pause`, `beat_pause`) and the target words-per-minute range (`target_wpm`). `narrate.py` loads it by default; command-line flags override the profile and `--profile` points to another file. For published videos, keep the profile untouched so the voice stays the same every time.
+
+After each render the script prints the pace, for example `Pace: 150 words/min (target 145-155) - OK`. If it is outside the range, adjust `speed` in the profile. The full standard is in [VOICE_BIBLE.md](VOICE_BIBLE.md).
 
 ## Pronouncing technical terms
 
