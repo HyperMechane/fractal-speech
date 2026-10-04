@@ -1,0 +1,55 @@
+# voice_test.txt - HyperMechane Voice Standard calibration script (about 2 minutes at the target pace)
+# How to use: python narrate.py voice_test.txt -o voice_test.mp3
+# Check: (1) the Pace line, (2) how [beat] sounds, (3) the terms marked PROBE.
+# Scene 1 - Opening (brand name three times, calm tone)
+
+This is HyperMechane.
+[beat]
+We build tools, we measure what they do, and we evolve them.
+No hype. Just engineering.
+
+# Scene 2 - Narrative paragraph (documentary pace)
+
+Every project starts with a question. Not a feature list, and not a slogan. A question.
+Last year, our team asked a simple one: why does a small change in a system sometimes take weeks to ship?
+
+The answer was not a single bug. It was a chain of small decisions, each one reasonable on its own.
+[beat]
+Together, they created friction.
+
+# Scene 3 - Numbers, versions, money (tests num2words)
+
+Version 2.4.1 was released in March 2026.
+It handles 12,000 requests per minute, and the average response time dropped by 38%.
+The hosted plan costs $49.90 a month, and the first thirty days are free.
+
+# Scene 4 - Technical terms (the terms below must be clear)
+
+Our API connects to GitHub, and every change goes through a CI/CD pipeline before it reaches production.
+The product is a SaaS platform, so updates arrive without any action from the customer.
+
+# PROBE: terms that may not be in pronunciations.json yet. Listen, and add the ones that sound wrong.
+We also publish an SDK, a JSON schema, and a command line tool that runs on a plain CPU.
+Behind it all there is a database, a queue, and a small cache.
+
+# Scene 5 - List (each item becomes its own sentence)
+
+Three principles guide the work:
+- Clarity before cleverness.
+- Evidence before opinion.
+- Simple systems that can be understood by one person.
+
+# Scene 6 - Longer pause between sections
+
+[pause 2]
+
+Building something durable takes time.
+[beat]
+It rewards patience, and it punishes shortcuts.
+
+If you are an engineer, a founder, or just someone curious about how things work, this channel is for you.
+We will show the decisions, the mistakes, and the numbers.
+[beat]
+Build. Measure. Evolve.
+
+This was HyperMechane.
