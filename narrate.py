@@ -300,15 +300,23 @@ def save_audio(audio: np.ndarray, output: Path, normalize: bool) -> None:
 # --------------------------------------------------------------------------
 # CLI
 # --------------------------------------------------------------------------
-def report_pace(items, duration: float, profile: dict) -> None:
-    """Words per minute of the narration (pauses included) vs the profile's target range."""
+def report_pace(items, captions, duration: float, profile: dict) -> None:
+    """Words per minute vs the profile's target range.
+
+    The target is checked against the pace with pauses included (what the listener
+    hears). The speech-only pace is shown too, to help decide whether to change
+    --speed (voice rate) or the pauses.
+    """
     words = sum(len(i[1].split()) for i in items if i[0] == "sentence")
-    if not words or duration <= 0:
+    speech = sum(end - start for start, end, _ in captions)
+    if not words or duration <= 0 or speech <= 0:
         return
     wpm = words / (duration / 60)
+    wpm_speech = words / (speech / 60)
     lo, hi = profile["target_wpm"]
     status = "OK" if lo <= wpm <= hi else ("too slow: raise --speed" if wpm < lo else "too fast: lower --speed")
-    print(f"Pace: {wpm:.0f} words/min (target {lo}-{hi}) - {status}")
+    print(f"Pace: {wpm:.0f} words/min with pauses (target {lo}-{hi}) - {status}")
+    print(f"      {wpm_speech:.0f} words/min speech only")
 
 
 def compare_voices(items, args) -> None:
@@ -328,7 +336,7 @@ def main() -> None:
     p = argparse.ArgumentParser(description="English voiceover from a text script (Kokoro TTS).")
     p.add_argument("script", nargs="?", help="text file with the script")
     p.add_argument("-o", "--output", default=None, help="output file (.mp3 or .wav); default: <script>.mp3")
-    p.add_argument("--profile", default=str(HERE / "voice_profile.json"), help="voice profile JSON (default: voice_profile.json)")
+    p.add_argument("--profile", default=None, help="voice profile JSON (default: voice_profile.json next to narrate.py)")
     p.add_argument("--voice", default=None, help="Kokoro voice (see --list-voices); default from profile")
     p.add_argument("--speed", type=float, default=None, help="0.8 = slower, 1.2 = faster; default from profile")
     p.add_argument("--sentence-pause", type=float, default=None, help="seconds between sentences; default from profile")
@@ -349,7 +357,12 @@ def main() -> None:
     script_path = Path(args.script)
     if not script_path.exists():
         sys.exit(f"File not found: {script_path}")
-    profile = load_profile(Path(args.profile))
+    profile_path = Path(args.profile) if args.profile else HERE / "voice_profile.json"
+    if not profile_path.exists():
+        if args.profile:  # explicitly requested: never fall back silently to another voice
+            sys.exit(f"Voice profile not found: {profile_path}")
+        print(f"Warning: {profile_path.name} not found, using built-in defaults (not the HyperMechane voice).")
+    profile = load_profile(profile_path)
     for name in ("voice", "speed", "sentence_pause", "paragraph_pause"):
         if getattr(args, name) is None:
             setattr(args, name, profile[name])
@@ -370,7 +383,7 @@ def main() -> None:
     if not args.no_srt:
         write_srt(captions, output.with_suffix(".srt"))
     print(f"\nDone: {output} ({len(audio) / SAMPLE_RATE:.1f}s)")
-    report_pace(items, len(audio) / SAMPLE_RATE, profile)
+    report_pace(items, captions, len(audio) / SAMPLE_RATE, profile)
 
 
 if __name__ == "__main__":
