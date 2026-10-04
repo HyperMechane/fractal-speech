@@ -1,0 +1,26 @@
+# Virtual environment and Python cache
+.venv/
+__pycache__/
+*.pyc
+
+# Generated audio, subtitles and samples
+*.mp3
+*.wav
+*.srt
+samples/
+
+# Real scripts (keep only the example in the repository)
+script.txt
+scripts/
+!example_script.txt
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Safety net: file names used by earlier versions
+roteiro.txt
+roteiros/
+amostras/

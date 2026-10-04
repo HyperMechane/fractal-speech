@@ -1,0 +1,8 @@
+# Scene 1 - opening (comment: this line is not read aloud)
+Welcome back to the channel. Today we're launching our new API, and it handles over 10,000 requests per second.
+
+[pause 1.5]
+
+Version 2.4.1 is live since March 2026. It costs $49.90 a month, and the SaaS dashboard is 35% faster.
+- Easy setup & clean docs
+- Works with GitHub and CI/CD pipelines
