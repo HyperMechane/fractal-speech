@@ -1,0 +1,9 @@
+{
+  "_note": "HyperMechane Voice Standard v1. See VOICE_BIBLE.md. CLI flags override these values.",
+  "voice": "am_adam",
+  "speed": 0.95,
+  "sentence_pause": 0.35,
+  "paragraph_pause": 0.90,
+  "beat_pause": 0.60,
+  "target_wpm": [145, 155]
+}

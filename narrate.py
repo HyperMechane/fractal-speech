@@ -6,11 +6,13 @@ Examples:
     python narrate.py script.txt
     python narrate.py script.txt -o narration.mp3 --voice am_adam --speed 0.95
     python narrate.py script.txt --compare-voices
+    python narrate.py script.txt --profile voice_profile.json
     python narrate.py --list-voices
 
 Script conventions:
     - Blank line            -> longer pause between paragraphs
     - [pause 2]             -> 2 seconds of silence
+    - [beat]                -> short pause before a key concept (length set in voice_profile.json)
     - Line starting with #  -> comment (not read aloud; use for scene notes)
 """
 from __future__ import annotations
@@ -30,6 +32,17 @@ import soundfile as sf
 SAMPLE_RATE = 24000  # Kokoro's native sample rate
 HERE = Path(__file__).resolve().parent
 
+# Built-in fallbacks. The official values live in voice_profile.json
+# (HyperMechane Voice Standard); CLI flags override the profile.
+DEFAULTS = {
+    "voice": "af_heart",
+    "speed": 1.0,
+    "sentence_pause": 0.30,
+    "paragraph_pause": 0.80,
+    "beat_pause": 0.60,
+    "target_wpm": [145, 155],
+}
+
 VOICES = {
     "af_heart": "American, female (default, most natural)",
     "af_bella": "American, female",
@@ -45,11 +58,21 @@ VOICES = {
 
 # "[pause 2]" (the Portuguese "[pausa 2]" is also accepted)
 PAUSE_RE = re.compile(r"^\[\s*(?:pause|pausa)\s+(\d+(?:\.\d+)?)\s*s?\s*\]$", re.I)
+BEAT_RE = re.compile(r"^\[\s*beat\s*\]$", re.I)
 
 
 # --------------------------------------------------------------------------
 # Text preprocessing
 # --------------------------------------------------------------------------
+def load_profile(path: Path) -> dict:
+    """Voice profile: DEFAULTS overridden by the JSON file (keys starting with _ are notes)."""
+    profile = dict(DEFAULTS)
+    if path.exists():
+        data = json.loads(path.read_text(encoding="utf-8"))
+        profile.update({k: v for k, v in data.items() if not k.startswith("_")})
+    return profile
+
+
 def load_dictionary(path: Path) -> dict[str, str]:
     if not path.exists():
         return {}
@@ -126,7 +149,7 @@ def split_sentences(paragraph: str) -> list[str]:
     return [p.strip() for p in parts if re.search(r"\w", p)]
 
 
-def parse_script(text: str, dictionary: dict[str, str]) -> list[tuple]:
+def parse_script(text: str, dictionary: dict[str, str], beat_pause: float = 0.6) -> list[tuple]:
     """Returns items: ("sentence", text, last_in_paragraph) or ("pause", seconds)."""
     items: list[tuple] = []
     paragraph: list[str] = []
@@ -146,6 +169,10 @@ def parse_script(text: str, dictionary: dict[str, str]) -> list[tuple]:
             continue
         if not line:
             flush()
+            continue
+        if BEAT_RE.match(line):
+            flush()
+            items.append(("pause", beat_pause))
             continue
         m = PAUSE_RE.match(line)
         if m:
@@ -273,13 +300,24 @@ def save_audio(audio: np.ndarray, output: Path, normalize: bool) -> None:
 # --------------------------------------------------------------------------
 # CLI
 # --------------------------------------------------------------------------
+def report_pace(items, duration: float, profile: dict) -> None:
+    """Words per minute of the narration (pauses included) vs the profile's target range."""
+    words = sum(len(i[1].split()) for i in items if i[0] == "sentence")
+    if not words or duration <= 0:
+        return
+    wpm = words / (duration / 60)
+    lo, hi = profile["target_wpm"]
+    status = "OK" if lo <= wpm <= hi else ("too slow: raise --speed" if wpm < lo else "too fast: lower --speed")
+    print(f"Pace: {wpm:.0f} words/min (target {lo}-{hi}) - {status}")
+
+
 def compare_voices(items, args) -> None:
     sample = [i for i in items if i[0] == "sentence"][:2]
     if not sample:
         sample = [("sentence", "Welcome to the channel. Today we are building something new.", True)]
     folder = Path("samples")
     folder.mkdir(exist_ok=True)
-    for voice in ["af_heart", "af_bella", "am_adam", "am_michael", "bf_emma", "bm_george"]:
+    for voice in ["am_adam", "am_michael", "am_fenrir", "bm_george"]:
         print(f"Voice: {voice}")
         audio, _ = build_audio(sample, voice, args.speed, args.sentence_pause, args.paragraph_pause)
         save_audio(audio, folder / f"{voice}.mp3", normalize=True)
@@ -290,10 +328,11 @@ def main() -> None:
     p = argparse.ArgumentParser(description="English voiceover from a text script (Kokoro TTS).")
     p.add_argument("script", nargs="?", help="text file with the script")
     p.add_argument("-o", "--output", default=None, help="output file (.mp3 or .wav); default: <script>.mp3")
-    p.add_argument("--voice", default="af_heart", help="Kokoro voice (see --list-voices)")
-    p.add_argument("--speed", type=float, default=1.0, help="0.8 = slower, 1.2 = faster")
-    p.add_argument("--sentence-pause", type=float, default=0.30, help="seconds between sentences")
-    p.add_argument("--paragraph-pause", type=float, default=0.80, help="seconds between paragraphs")
+    p.add_argument("--profile", default=str(HERE / "voice_profile.json"), help="voice profile JSON (default: voice_profile.json)")
+    p.add_argument("--voice", default=None, help="Kokoro voice (see --list-voices); default from profile")
+    p.add_argument("--speed", type=float, default=None, help="0.8 = slower, 1.2 = faster; default from profile")
+    p.add_argument("--sentence-pause", type=float, default=None, help="seconds between sentences; default from profile")
+    p.add_argument("--paragraph-pause", type=float, default=None, help="seconds between paragraphs; default from profile")
     p.add_argument("--dictionary", default=str(HERE / "pronunciations.json"), help="pronunciation JSON file")
     p.add_argument("--no-normalize", action="store_true", help="skip loudness normalization (-16 LUFS)")
     p.add_argument("--no-srt", action="store_true", help="do not write the .srt subtitle file")
@@ -310,11 +349,15 @@ def main() -> None:
     script_path = Path(args.script)
     if not script_path.exists():
         sys.exit(f"File not found: {script_path}")
+    profile = load_profile(Path(args.profile))
+    for name in ("voice", "speed", "sentence_pause", "paragraph_pause"):
+        if getattr(args, name) is None:
+            setattr(args, name, profile[name])
     if args.voice[0] not in ("a", "b"):
         sys.exit("Invalid voice. See --list-voices (English Kokoro voices start with a or b).")
 
     dictionary = load_dictionary(Path(args.dictionary))
-    items = parse_script(script_path.read_text(encoding="utf-8"), dictionary)
+    items = parse_script(script_path.read_text(encoding="utf-8"), dictionary, profile["beat_pause"])
 
     if args.compare_voices:
         compare_voices(items, args)
@@ -327,6 +370,7 @@ def main() -> None:
     if not args.no_srt:
         write_srt(captions, output.with_suffix(".srt"))
     print(f"\nDone: {output} ({len(audio) / SAMPLE_RATE:.1f}s)")
+    report_pace(items, len(audio) / SAMPLE_RATE, profile)
 
 
 if __name__ == "__main__":
